@@ -8,6 +8,7 @@ class GameOverDialog extends StatelessWidget {
   final int highScore;
   final bool isNewHighScore;
   final VoidCallback onRestart;
+  final VoidCallback onMenu;
 
   const GameOverDialog({
     Key? key,
@@ -17,6 +18,7 @@ class GameOverDialog extends StatelessWidget {
     required this.highScore,
     required this.isNewHighScore,
     required this.onRestart,
+    required this.onMenu,
   }) : super(key: key);
 
   @override
@@ -68,10 +70,7 @@ class GameOverDialog extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(); // Close dialog
-                    Navigator.of(context).pop(); // Pop game screen to return to menu
-                  },
+                  onPressed: onMenu,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.grey.shade700,
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),

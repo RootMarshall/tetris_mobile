@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants.dart';
 import '../services/high_score_service.dart';
+import '../services/sound_service.dart';
 import 'game_screen.dart';
 
 enum Difficulty { beginner, normal, hard }
@@ -12,14 +13,41 @@ class MenuScreen extends StatefulWidget {
   State<MenuScreen> createState() => _MenuScreenState();
 }
 
-class _MenuScreenState extends State<MenuScreen> {
+class _MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
   Difficulty selectedDifficulty = Difficulty.normal;
   int highScore = 0;
+  final SoundService soundService = SoundService();
+  bool soundEnabled = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadHighScore();
+    _loadSoundSetting();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    // Only handle lifecycle events if this screen is currently visible
+    // Check if we're the top route in the navigation stack
+    if (!mounted) return;
+    
+    final route = ModalRoute.of(context);
+    if (route == null || !route.isCurrent) return;
+    
+    // Pause intro music when app is minimized or inactive
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      soundService.stopMusic().catchError((_) {});
+    }
+    // Resume intro music when app comes back (only if we're the active screen)
+    else if (state == AppLifecycleState.resumed) {
+      if (soundEnabled) {
+        soundService.playIntroMusic();
+      }
+    }
   }
 
   Future<void> _loadHighScore() async {
@@ -29,14 +57,57 @@ class _MenuScreenState extends State<MenuScreen> {
     });
   }
 
+  Future<void> _loadSoundSetting() async {
+    await soundService.initialize();
+    setState(() {
+      soundEnabled = soundService.isSoundEnabled;
+    });
+    
+    // Start playing intro music
+    if (soundEnabled) {
+      soundService.playIntroMusic();
+    }
+  }
+
+  Future<void> _toggleSound() async {
+    await soundService.toggleSound();
+    setState(() {
+      soundEnabled = soundService.isSoundEnabled;
+    });
+    
+    // Start or stop intro music based on new setting
+    if (soundEnabled) {
+      soundService.playIntroMusic();
+    } else {
+      soundService.stopMusic();
+    }
+  }
+
   void _startGame() async {
+    // Stop intro music when starting game
+    soundService.stopMusic();
+    
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => GameScreen(difficulty: selectedDifficulty),
       ),
     );
+    
     // Reload high score when returning from game
     _loadHighScore();
+    
+    // Restart intro music when returning to menu
+    if (soundEnabled) {
+      soundService.playIntroMusic();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    // Stop music when menu is disposed
+    soundService.stopMusic().catchError((_) {});
+    super.dispose();
   }
 
   @override
@@ -44,10 +115,30 @@ class _MenuScreenState extends State<MenuScreen> {
     return Scaffold(
       backgroundColor: backgroundColor,
       body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
+        child: Stack(
+          children: [
+            // Sound toggle button at top right
+            Positioned(
+              top: 16,
+              right: 16,
+              child: IconButton(
+                onPressed: _toggleSound,
+                icon: Icon(
+                  soundEnabled ? Icons.volume_up : Icons.volume_off,
+                  color: soundEnabled ? Colors.cyan.shade400 : Colors.grey.shade600,
+                  size: 32,
+                ),
+                style: IconButton.styleFrom(
+                  backgroundColor: boardColor,
+                  padding: const EdgeInsets.all(12),
+                ),
+              ),
+            ),
+            // Main content
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
               // Title - TETRISN'T
               RichText(
                 text: TextSpan(
@@ -176,8 +267,10 @@ class _MenuScreenState extends State<MenuScreen> {
                   ),
                 ),
               ),
-            ],
-          ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

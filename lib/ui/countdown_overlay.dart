@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants.dart';
+import '../services/sound_service.dart';
 
 class CountdownOverlay extends StatefulWidget {
   final VoidCallback onComplete;
@@ -18,6 +19,7 @@ class _CountdownOverlayState extends State<CountdownOverlay>
   int countdown = 3;
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
+  final SoundService soundService = SoundService();
 
   @override
   void initState() {
@@ -29,11 +31,14 @@ class _CountdownOverlayState extends State<CountdownOverlay>
     _scaleAnimation = Tween<double>(begin: 0.5, end: 1.2).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
+    // Play countdown sound ONCE at the start (the audio file contains all beeps)
+    soundService.playCountdown();
     _startCountdown();
   }
 
   void _startCountdown() {
     _animationController.forward(from: 0);
+    
     Future.delayed(const Duration(seconds: 1), () {
       if (mounted) {
         if (countdown > 1) {
@@ -47,6 +52,7 @@ class _CountdownOverlayState extends State<CountdownOverlay>
             countdown = 0;
           });
           _animationController.forward(from: 0);
+          
           Future.delayed(const Duration(milliseconds: 500), () {
             if (mounted) {
               widget.onComplete();
@@ -57,9 +63,17 @@ class _CountdownOverlayState extends State<CountdownOverlay>
     });
   }
 
+  void _stopCountdownSound() {
+    // Create a dedicated method to stop the countdown sound
+    // This ensures it doesn't bleed into gameplay
+    soundService.stopAllGameSounds().catchError((_) {});
+  }
+
   @override
   void dispose() {
     _animationController.dispose();
+    // Make sure countdown sound is stopped when overlay is disposed
+    _stopCountdownSound();
     super.dispose();
   }
 

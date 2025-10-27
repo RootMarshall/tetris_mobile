@@ -21,7 +21,7 @@ class GameScreen extends StatefulWidget {
   State<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> {
+class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   late GameController controller;
   late int initialSpeed;
   double _dragStartX = 0;
@@ -30,10 +30,12 @@ class _GameScreenState extends State<GameScreen> {
   bool _hasHardDropped = false;
   int highScore = 0;
   bool _showCountdown = true;
+  bool _wasAutoPaused = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Get speed based on difficulty
     switch (widget.difficulty) {
       case Difficulty.beginner:
@@ -50,6 +52,30 @@ class _GameScreenState extends State<GameScreen> {
     controller.addListener(_onGameStateChanged);
     _loadHighScore();
     // Game will start after countdown completes
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Pause game when app is minimized or inactive
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      if (!controller.state.isGameOver && !controller.state.isPaused && !_showCountdown) {
+        controller.pauseGame();
+        _wasAutoPaused = true; // Track that we auto-paused
+      }
+    }
+    // Show pause menu when app resumes after auto-pause
+    else if (state == AppLifecycleState.resumed) {
+      if (_wasAutoPaused && mounted) {
+        _wasAutoPaused = false;
+        // Small delay to ensure UI is ready
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted && controller.state.isPaused) {
+            _showPauseMenuWithoutToggle();
+          }
+        });
+      }
+    }
   }
 
   void _startGameWithCountdown() {
@@ -105,6 +131,10 @@ class _GameScreenState extends State<GameScreen> {
               _loadHighScore();
               _restartGame();
             },
+            onMenu: () {
+              Navigator.of(context).pop(); // Close dialog
+              Navigator.of(context).pop(); // Return to menu screen
+            },
           ),
         );
       }
@@ -113,6 +143,10 @@ class _GameScreenState extends State<GameScreen> {
 
   void _showPauseMenu() {
     controller.pauseGame(); // Pause the game
+    _showPauseMenuWithoutToggle();
+  }
+
+  void _showPauseMenuWithoutToggle() {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -131,6 +165,7 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     controller.removeListener(_onGameStateChanged);
     controller.dispose();
     super.dispose();

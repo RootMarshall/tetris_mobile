@@ -31,9 +31,11 @@ class GameState {
     }
   }
 
-  void addLines(int lines) {
+  bool addLines(int lines) {
+    int oldLevel = level;
     linesCleared += lines;
     level = (linesCleared ~/ 10) + 1;
+    return level > oldLevel; // Return true if level increased
   }
 
   void reset() {

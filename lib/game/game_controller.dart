@@ -6,11 +6,13 @@ import '../models/game_board.dart';
 import '../models/game_state.dart';
 import '../constants.dart';
 import 'collision_detector.dart';
+import '../services/sound_service.dart';
 
 class GameController extends ChangeNotifier {
   final GameBoard board = GameBoard();
   final GameState state = GameState();
   final int initialSpeed;
+  final SoundService soundService = SoundService();
   Timer? gameTimer;
   bool showTetrisPopup = false;
   bool showSlamEffect = false;
@@ -20,6 +22,7 @@ class GameController extends ChangeNotifier {
 
   GameController({required this.initialSpeed}) {
     _initGame();
+    soundService.initialize();
   }
 
   void _initGame() {
@@ -41,12 +44,32 @@ class GameController extends ChangeNotifier {
     state.nextPiece = _generateRandomPiece();
     state.canHold = true;
 
+    // Activate spawn grace period to give player time to move the piece
+    _isSpawnGraceActive = true;
+    Timer(Duration(milliseconds: spawnGraceMs), () {
+      _isSpawnGraceActive = false;
+    });
+
     if (state.currentPiece != null && 
         CollisionDetector.checkCollision(state.currentPiece!, board)) {
-      state.isGameOver = true;
-      gameTimer?.cancel();
+      // Only end game if piece can't move left or right during grace period
+      if (!_canMoveHorizontally()) {
+        state.isGameOver = true;
+        gameTimer?.cancel();
+        soundService.playGameOver();
+      }
     }
     notifyListeners();
+  }
+
+  bool _canMoveHorizontally() {
+    if (state.currentPiece == null) return false;
+    
+    // Check if piece can move left or right
+    bool canMoveLeft = !CollisionDetector.checkCollision(state.currentPiece!, board, offsetX: -1);
+    bool canMoveRight = !CollisionDetector.checkCollision(state.currentPiece!, board, offsetX: 1);
+    
+    return canMoveLeft || canMoveRight;
   }
 
   void startGame() {
@@ -75,6 +98,10 @@ class GameController extends ChangeNotifier {
     
     if (!CollisionDetector.checkCollision(state.currentPiece!, board, offsetX: -1)) {
       state.currentPiece!.x--;
+      soundService.playMove();
+      
+      // End spawn grace period when player moves
+      _isSpawnGraceActive = false;
       
       // Reset lock delay if piece is grounded
       if (CollisionDetector.checkCollision(state.currentPiece!, board, offsetY: 1)) {
@@ -90,6 +117,10 @@ class GameController extends ChangeNotifier {
     
     if (!CollisionDetector.checkCollision(state.currentPiece!, board, offsetX: 1)) {
       state.currentPiece!.x++;
+      soundService.playMove();
+      
+      // End spawn grace period when player moves
+      _isSpawnGraceActive = false;
       
       // Reset lock delay if piece is grounded
       if (CollisionDetector.checkCollision(state.currentPiece!, board, offsetY: 1)) {
@@ -105,6 +136,10 @@ class GameController extends ChangeNotifier {
   bool _isLockDelayActive = false;
   static const int maxLockDelayMoves = 15; // Max moves before forced lock
   static const int lockDelayMs = 500; // Half second to adjust
+  
+  // Spawn grace period to prevent immediate game over
+  bool _isSpawnGraceActive = false;
+  static const int spawnGraceMs = 1000; // 1 second grace period
 
   void moveDown() {
     if (state.currentPiece == null || state.isGameOver || state.isPaused || _isProcessingLock) return;
@@ -113,9 +148,12 @@ class GameController extends ChangeNotifier {
       state.currentPiece!.y++;
       notifyListeners();
     } else {
-      // Only start lock delay if not already active
-      if (!_isLockDelayActive) {
-        _startLockDelay();
+      // Don't lock during spawn grace period
+      if (!_isSpawnGraceActive) {
+        // Only start lock delay if not already active
+        if (!_isLockDelayActive) {
+          _startLockDelay();
+        }
       }
     }
   }
@@ -152,6 +190,8 @@ class GameController extends ChangeNotifier {
       state.currentPiece!.y++;
     }
     
+    soundService.playLand();
+    
     // Show slam effect
     showSlamEffect = true;
     notifyListeners();
@@ -167,8 +207,16 @@ class GameController extends ChangeNotifier {
   void rotate() {
     if (state.currentPiece == null || state.isGameOver || state.isPaused || _isProcessingLock) return;
     
-    if (CollisionDetector.canRotate(state.currentPiece!, board)) {
+    // Try rotation with wall kick
+    int wallKickOffset = CollisionDetector.tryRotateWithWallKick(state.currentPiece!, board);
+    
+    if (wallKickOffset != 999) { // 999 indicates failure
       state.currentPiece!.rotate();
+      state.currentPiece!.x += wallKickOffset;
+      soundService.playRotate();
+      
+      // End spawn grace period when player rotates
+      _isSpawnGraceActive = false;
       
       // Reset lock delay if piece is grounded
       if (CollisionDetector.checkCollision(state.currentPiece!, board, offsetY: 1)) {
@@ -183,6 +231,8 @@ class GameController extends ChangeNotifier {
     if (state.currentPiece == null || state.isGameOver || state.isPaused || !state.canHold || _isProcessingLock) {
       return;
     }
+
+    soundService.playHold();
 
     if (state.heldPiece == null) {
       // First time holding
@@ -221,6 +271,13 @@ class GameController extends ChangeNotifier {
     if (fullRows.isNotEmpty) {
       int linesCleared = fullRows.length;
       
+      // Play appropriate sound
+      if (linesCleared == 4) {
+        soundService.playTetris();
+      } else {
+        soundService.playClear();
+      }
+      
       // Show rows clearing animation with progress
       rowsToClear = fullRows;
       clearAnimationProgress = 0.0;
@@ -244,8 +301,14 @@ class GameController extends ChangeNotifier {
           board.clearRows(fullRows);
           rowsToClear = [];
           clearAnimationProgress = 0.0;
-          state.addLines(linesCleared);
+          bool leveledUp = state.addLines(linesCleared);
           state.addScore(linesCleared);
+          
+          // Play level up sound if level increased
+          if (leveledUp) {
+            soundService.playLevelUp();
+          }
+          
           _startTimer();
           notifyListeners();
           
@@ -269,6 +332,9 @@ class GameController extends ChangeNotifier {
       return; // Don't spawn new piece yet
     }
 
+    // No lines cleared, just play land sound
+    soundService.playLand();
+
     _isProcessingLock = false; // Release lock before spawning
     _spawnNewPiece();
   }
@@ -282,6 +348,9 @@ class GameController extends ChangeNotifier {
   void dispose() {
     gameTimer?.cancel();
     _lockDelayTimer?.cancel();
+    // Stop all game sounds when controller is disposed
+    // Don't dispose the singleton service, just stop active sounds
+    soundService.stopAllGameSounds().catchError((_) {});
     super.dispose();
   }
 }
