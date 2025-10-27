@@ -28,5 +28,13 @@ class CollisionDetector {
     piece.rotateBack();
     return !collision;
   }
+
+  static int calculateGhostY(Tetromino piece, GameBoard board) {
+    int ghostY = piece.y;
+    while (!checkCollision(piece, board, offsetY: ghostY - piece.y + 1)) {
+      ghostY++;
+    }
+    return ghostY;
+  }
 }
 

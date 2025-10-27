@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/game_board.dart';
 import '../models/tetromino.dart';
 import '../constants.dart';
+import '../game/collision_detector.dart';
 
 class BoardWidget extends StatelessWidget {
   final GameBoard board;
@@ -123,6 +124,36 @@ class BoardPainter extends CustomPainter {
       }
     }
 
+    // Draw ghost piece (translucent outline showing where piece will land)
+    if (currentPiece != null) {
+      final ghostY = CollisionDetector.calculateGhostY(currentPiece!, board);
+      
+      // Only draw ghost if it's below the current piece
+      if (ghostY > currentPiece!.y) {
+        final shape = currentPiece!.shape;
+        final color = tetrominoColors[currentPiece!.type]!;
+        
+        for (int row = 0; row < shape.length; row++) {
+          for (int col = 0; col < shape[row].length; col++) {
+            if (shape[row][col] == 1) {
+              int boardX = currentPiece!.x + col;
+              int boardY = ghostY + row;
+              if (boardY >= 0) {
+                _drawGhostCell(
+                  canvas,
+                  boardX * cellWidth,
+                  boardY * cellHeight,
+                  cellWidth,
+                  cellHeight,
+                  color,
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+
     // Draw current piece
     if (currentPiece != null) {
       final shape = currentPiece!.shape;
@@ -171,6 +202,20 @@ class BoardPainter extends CustomPainter {
       Offset(x + 2, y + height - 2),
       highlightPaint,
     );
+  }
+
+  void _drawGhostCell(Canvas canvas, double x, double y, double width, double height, Color color) {
+    // Draw translucent outline only
+    final outlinePaint = Paint()
+      ..color = color.withOpacity(0.3)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(x + 2, y + 2, width - 4, height - 4),
+      const Radius.circular(2),
+    );
+    canvas.drawRRect(rect, outlinePaint);
   }
 
   void _drawClearingCell(Canvas canvas, double x, double y, double width, double height, Color color) {
