@@ -69,8 +69,8 @@ class GameOverDialog extends StatelessWidget {
               children: [
                 ElevatedButton(
                   onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).pop(); // Go back to menu
+                    Navigator.of(context).pop(); // Close dialog
+                    Navigator.of(context).pop(); // Pop game screen to return to menu
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.grey.shade700,

@@ -48,14 +48,29 @@ class _MenuScreenState extends State<MenuScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Title
-              const Text(
-                'TETRIS',
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 64,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 8,
+              // Title - TETRISN'T
+              RichText(
+                text: TextSpan(
+                  style: const TextStyle(
+                    fontSize: 52,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 6,
+                    fontFamily: 'monospace',
+                  ),
+                  children: [
+                    const TextSpan(
+                      text: 'TETR',
+                      style: TextStyle(
+                        color: textColor,
+                      ),
+                    ),
+                    TextSpan(
+                      text: 'ISN\'T',
+                      style: TextStyle(
+                        color: Colors.red.shade500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 16),

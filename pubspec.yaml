@@ -1,5 +1,5 @@
 name: tetris_mobile
-description: A lightweight, aesthetic Tetris mobile game
+description: Tetrisn't - A lightweight, aesthetic Tetris-inspired mobile game
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -15,6 +15,13 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^2.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: true
+  image_path: "app_icon.svg"
+  adaptive_icon_background: "#0f172a"
+  adaptive_icon_foreground: "app_icon.svg"
 
 flutter:
   uses-material-design: true
