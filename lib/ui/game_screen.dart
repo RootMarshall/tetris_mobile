@@ -8,6 +8,8 @@ import 'next_piece_widget.dart';
 import 'hold_box_widget.dart';
 import 'tetris_popup.dart';
 import 'game_over_dialog.dart';
+import 'pause_menu_dialog.dart';
+import 'countdown_overlay.dart';
 import 'menu_screen.dart';
 
 class GameScreen extends StatefulWidget {
@@ -21,17 +23,18 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   late GameController controller;
+  late int initialSpeed;
   double _dragStartX = 0;
   double _dragStartY = 0;
   double _dragStartTime = 0;
   bool _hasHardDropped = false;
   int highScore = 0;
+  bool _showCountdown = true;
 
   @override
   void initState() {
     super.initState();
     // Get speed based on difficulty
-    int initialSpeed;
     switch (widget.difficulty) {
       case Difficulty.beginner:
         initialSpeed = difficultySpeed['beginner']!;
@@ -45,8 +48,28 @@ class _GameScreenState extends State<GameScreen> {
     }
     controller = GameController(initialSpeed: initialSpeed);
     controller.addListener(_onGameStateChanged);
-    controller.startGame();
     _loadHighScore();
+    // Game will start after countdown completes
+  }
+
+  void _startGameWithCountdown() {
+    setState(() {
+      _showCountdown = true;
+    });
+  }
+
+  void _onCountdownComplete() {
+    setState(() {
+      _showCountdown = false;
+    });
+    controller.startGame();
+  }
+
+  void _restartGame() {
+    controller.dispose();
+    controller = GameController(initialSpeed: initialSpeed);
+    controller.addListener(_onGameStateChanged);
+    _startGameWithCountdown();
   }
 
   Future<void> _loadHighScore() async {
@@ -78,13 +101,32 @@ class _GameScreenState extends State<GameScreen> {
             highScore: controller.state.score > highScore ? controller.state.score : highScore,
             isNewHighScore: isNewHighScore,
             onRestart: () {
-              controller.startGame();
+              Navigator.of(context).pop(); // Close dialog
               _loadHighScore();
+              _restartGame();
             },
           ),
         );
       }
     });
+  }
+
+  void _showPauseMenu() {
+    controller.pauseGame(); // Pause the game
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PauseMenuDialog(
+        onResume: () {
+          Navigator.of(context).pop(); // Close dialog
+          controller.pauseGame(); // Resume game
+        },
+        onRestart: () {
+          Navigator.of(context).pop(); // Close dialog
+          _restartGame();
+        },
+      ),
+    );
   }
 
   @override
@@ -157,7 +199,7 @@ class _GameScreenState extends State<GameScreen> {
                       _buildInfoCard('LINES', controller.state.linesCleared.toString()),
                       // Pause button in top right
                       GestureDetector(
-                        onTap: controller.pauseGame,
+                        onTap: _showPauseMenu,
                         child: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -166,7 +208,7 @@ class _GameScreenState extends State<GameScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
-                            controller.state.isPaused ? Icons.play_arrow : Icons.pause,
+                            Icons.pause,
                             color: Colors.blue.shade400,
                             size: 24,
                           ),
@@ -234,6 +276,12 @@ class _GameScreenState extends State<GameScreen> {
                 child: const Center(
                   child: TetrisPopup(),
                 ),
+              ),
+
+            // Countdown overlay
+            if (_showCountdown)
+              CountdownOverlay(
+                onComplete: _onCountdownComplete,
               ),
           ],
         ),
